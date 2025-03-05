@@ -20,7 +20,7 @@ const identityAbi = identityArtifact.abi;
 const identityAddress = process.env.IDENTITY_CONTRACT_ADDRESS;
 const identityContract = new ethers.Contract(identityAddress, identityAbi, wallet);
 
-const healthRecordArtifact = require('./artifacts/contracts/HealthRecord.sol/HealthRecord.json');
+const healthRecordArtifact = require('./artifacts/contracts/HealthRecord.sol/HealthRecordContract.json');
 const healthRecordAbi = healthRecordArtifact.abi;
 const healthRecordAddress = process.env.HEALTH_RECORD_CONTRACT_ADDRESS;
 const healthRecordContract = new ethers.Contract(healthRecordAddress, healthRecordAbi, wallet);
