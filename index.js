@@ -20,7 +20,7 @@ const identityAbi = identityArtifact.abi;
 const identityAddress = process.env.IDENTITY_CONTRACT_ADDRESS;
 const identityContract = new ethers.Contract(identityAddress, identityAbi, wallet);
 
-const healthRecordArtifact = require('./artifacts/contracts/HealthRecordContract.sol/HealthRecordContract.json');
+const healthRecordArtifact = require('./artifacts/contracts/HealthRecord.sol/HealthRecord.json');
 const healthRecordAbi = healthRecordArtifact.abi;
 const healthRecordAddress = process.env.HEALTH_RECORD_CONTRACT_ADDRESS;
 const healthRecordContract = new ethers.Contract(healthRecordAddress, healthRecordAbi, wallet);
@@ -67,6 +67,49 @@ app.post('/record', async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   });
+
+// Endpoint to fetch audit logs from IdentityContract (UserRegistered events)
+app.get('/audit/identity', async (req, res) => {
+    try {
+      // Create a filter for the UserRegistered event
+      const filter = identityContract.filters.UserRegistered();
+      // Retrieve logs from the beginning to the latest block
+      const logs = await provider.getLogs({
+        fromBlock: 0,
+        toBlock: "latest",
+        address: identityContract.address,
+        topics: filter.topics
+      });
+      // Decode logs using the contract interface
+      const decodedLogs = logs.map(log => identityContract.interface.parseLog(log));
+      res.status(200).json(decodedLogs);
+    } catch (error) {
+      console.error("Audit trail error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+// Endpoint to fetch audit logs from HealthRecordContract (RecordAdded events)
+app.get('/audit/records', async (req, res) => {
+    try {
+      // Create a filter for the RecordAdded event
+      const filter = healthRecordContract.filters.RecordAdded();
+      const logs = await provider.getLogs({
+        fromBlock: 0,
+        toBlock: "latest",
+        address: healthRecordContract.address,
+        topics: filter.topics
+      });
+      // Decode logs using the contract interface
+      const decodedLogs = logs.map(log => healthRecordContract.interface.parseLog(log));
+      res.status(200).json(decodedLogs);
+    } catch (error) {
+      console.error("Audit trail error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  
 
 // Start the server
 const PORT = process.env.PORT || 3000;
