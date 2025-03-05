@@ -15,7 +15,7 @@ contract HealthRecordFactory {
     );
     
     function createRecord(string memory _patientNric, string memory _recordHash) public {
-        HealthRecord newRecord = new HealthRecord(_patientNric, _recordHash, msg.sender);
+        single_Health_Record newRecord = new single_Health_Record(_patientNric, _recordHash, msg.sender);
         deployedRecords.push(address(newRecord));
         emit RecordCreated(address(newRecord), _patientNric, msg.sender, newRecord.timestamp());
     }
