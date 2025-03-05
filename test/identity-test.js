@@ -13,7 +13,7 @@ describe("IdentityContract", function () {
     IdentityContract = await ethers.getContractFactory("IdentityContract");
     [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
     identity = await IdentityContract.deploy();
-    await identity.deployed();
+    
   });
 
   it("Should register a new user and emit the UserRegistered event", async function () {
