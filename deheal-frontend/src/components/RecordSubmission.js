@@ -1,6 +1,6 @@
 // src/components/RecordSubmission.js
 import React, { useState } from 'react';
-import { addRecord } from '../api/api';
+import { createRecord } from '../api/api';
 
 const RecordSubmission = () => {
   const [formData, setFormData] = useState({
@@ -16,7 +16,7 @@ const RecordSubmission = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await addRecord(formData);
+      const response = await createRecord(formData);
       setMessage(`Record added: ${response.data.txHash}`);
       setFormData({ nric: '', recordHash: '' });
     } catch (error) {
