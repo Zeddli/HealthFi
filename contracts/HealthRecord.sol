@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract HealthRecordContract {
+contract HealthRecord {
     struct HealthRecord {
         string recordHash;  // e.g., a hash or pointer to the actual record
         uint256 timestamp;

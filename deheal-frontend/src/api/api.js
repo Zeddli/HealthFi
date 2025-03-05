@@ -21,3 +21,4 @@ export const getRecordAuditLogs = async () => {
 export const registerUser = async (data) => {
   return await axios.post(`${API_BASE_URL}/register`, data);
 };
+
