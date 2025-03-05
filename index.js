@@ -20,6 +20,11 @@ const identityAbi = identityArtifact.abi;
 const identityAddress = process.env.IDENTITY_CONTRACT_ADDRESS;
 const identityContract = new ethers.Contract(identityAddress, identityAbi, wallet);
 
+const healthRecordArtifact = require('./artifacts/contracts/HealthRecordContract.sol/HealthRecordContract.json');
+const healthRecordAbi = healthRecordArtifact.abi;
+const healthRecordAddress = process.env.HEALTH_RECORD_CONTRACT_ADDRESS;
+const healthRecordContract = new ethers.Contract(healthRecordAddress, healthRecordAbi, wallet);
+
 // Endpoint to register a new user
 app.post('/register', async (req, res) => {
   try {
@@ -37,6 +42,31 @@ app.post('/register', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Endpoint to add a new health record
+app.post('/record', async (req, res) => {
+    try {
+      const { nric, recordHash } = req.body;
+      const tx = await healthRecordContract.addRecord(nric, recordHash);
+      await tx.wait();
+      res.status(200).json({ message: 'Record added successfully', txHash: tx.hash });
+    } catch (error) {
+      console.error("Record addition error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Endpoint to get records for a patient
+  app.get('/record/:nric', async (req, res) => {
+    try {
+      const nric = req.params.nric;
+      const records = await healthRecordContract.getRecords(nric);
+      res.status(200).json(records);
+    } catch (error) {
+      console.error("Record retrieval error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
 // Start the server
 const PORT = process.env.PORT || 3000;
