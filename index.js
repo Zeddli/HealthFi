@@ -25,6 +25,12 @@ const healthRecordAbi = healthRecordArtifact.abi;
 const healthRecordAddress = process.env.HEALTH_RECORD_CONTRACT_ADDRESS;
 const healthRecordContract = new ethers.Contract(healthRecordAddress, healthRecordAbi, wallet);
 
+// Load the HealthRecordFactory contract ABI and address
+const healthRecordFactoryArtifact = require('./artifacts/contracts/HealthRecordFactory.sol/HealthRecordFactory.json');
+const healthRecordFactoryAbi = healthRecordFactoryArtifact.abi;
+const healthRecordFactoryAddress = process.env.HEALTH_RECORD_FACTORY_ADDRESS;
+const healthRecordFactoryContract = new ethers.Contract(healthRecordFactoryAddress, healthRecordFactoryAbi, wallet);
+
 // Endpoint to register a new user
 app.post('/register', async (req, res) => {
   try {
@@ -108,7 +114,19 @@ app.get('/audit/records', async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   });
-  
+
+// Endpoint to add a new health record using the factory
+app.post('/record', async (req, res) => {
+  try {
+    const { nric, recordHash } = req.body;
+    const tx = await healthRecordFactoryContract.createRecord(nric, recordHash);
+    await tx.wait();
+    res.status(200).json({ message: 'Record contract deployed successfully', txHash: tx.hash });
+  } catch (error) {
+    console.error("Record submission error:", error);
+    res.status(500).json({ error: error.message });
+  }
+}); 
   
 
 // Start the server
