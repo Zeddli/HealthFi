@@ -6,7 +6,7 @@ import './Navbar.css'; // optional for styling
 const Navbar = () => {
   return (
     <nav className="navbar">
-      <h2 className="navbar-title">DeFi Health</h2>
+      <h2 className="navbar-title">HealthFi</h2>
       <ul className="nav-links">
         <li><Link to="/submit-record">Submit Health Record</Link></li>
         <li><Link to="/audit-trail">Audit Trail Dashboard</Link></li>
