@@ -1,10 +1,16 @@
-// index.js
 require('dotenv').config();
 const { ethers } = require('ethers');
 const express = require('express');
+const path = require('path');
+const cors = require('cors');
 const app = express();
 
+// Enable CORS for development
+app.use(cors());
 app.use(express.json());
+
+// Serve static files from React build directory
+app.use(express.static(path.join(__dirname, 'deheal-frontend/build')));
 
 // Set up the provider using Vanar's RPC URL
 const provider = new ethers.JsonRpcProvider(process.env.VANGUARD_RPC_URL);
@@ -30,6 +36,11 @@ const healthRecordFactoryArtifact = require('./artifacts/contracts/HealthRecordF
 const healthRecordFactoryAbi = healthRecordFactoryArtifact.abi;
 const healthRecordFactoryAddress = process.env.HEALTH_RECORD_FACTORY_ADDRESS;
 const healthRecordFactoryContract = new ethers.Contract(healthRecordFactoryAddress, healthRecordFactoryAbi, wallet);
+
+// Add this before your other routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'deheal-frontend/build', 'index.html'));
+});
 
 // Endpoint to register a new user
 app.post('/register', async (req, res) => {
@@ -127,7 +138,11 @@ app.post('/record', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 }); 
-  
+
+// Add this after all other routes to handle React routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'deheal-frontend/build', 'index.html'));
+});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
