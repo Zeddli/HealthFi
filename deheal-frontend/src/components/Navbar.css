@@ -1,0 +1,29 @@
+
+.navbar {
+    display: flex;
+    align-items: center;
+    background-color: #f8f8f8;
+    padding: 10px 20px;
+  }
+  
+  .navbar-title {
+    margin: 0;
+    margin-right: auto;
+    font-weight: bold;
+  }
+  
+  .nav-links {
+    list-style-type: none;
+    display: flex;
+    gap: 20px;
+  }
+  
+  .nav-links a {
+    text-decoration: none;
+    color: #333;
+  }
+  
+  .nav-links a:hover {
+    text-decoration: underline;
+  }
+  

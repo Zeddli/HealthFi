@@ -26,7 +26,7 @@ const RecordSubmission = () => {
   };
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <h2>Submit Health Record</h2>
       <form onSubmit={handleSubmit}>
         <input

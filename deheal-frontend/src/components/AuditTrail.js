@@ -1,4 +1,4 @@
-// src/components/AuditTrail.js
+
 import React, { useEffect, useState } from 'react';
 import { getIdentityAuditLogs, getRecordAuditLogs } from '../api/api';
 
@@ -22,7 +22,7 @@ const AuditTrail = () => {
   }, []);
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <h2>Audit Trail Dashboard</h2>
       <h3>User Registration Events</h3>
       <ul>

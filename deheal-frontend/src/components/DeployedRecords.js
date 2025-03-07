@@ -18,7 +18,7 @@ const DeployedRecords = () => {
   }, []);
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <h2>Deployed Health Record Contracts</h2>
       {records.length === 0 ? (
         <p>No records deployed yet.</p>
