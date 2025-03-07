@@ -1,7 +1,7 @@
 // src/pages/Register.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { registerUser } from '../api/api';
+import { userApi } from '../api/api';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -20,15 +20,15 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await registerUser(formData);
-      setMessage(`Success: ${response.data.txHash}`);
+      const response = await userApi.register(formData);
+      setMessage(`Success: ${response.txHash}`);
       // Clear form and redirect to login
       setTimeout(() => {
         setFormData({ nric: '', fullName: '', phone: '', department: '' });
         navigate('/login');
       }, 1500);
     } catch (error) {
-      setMessage(`Error: ${error.response?.data?.error || error.message}`);
+      setMessage(`Error: ${error.message}`);
     }
   };
 

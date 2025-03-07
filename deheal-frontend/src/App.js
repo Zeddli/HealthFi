@@ -12,7 +12,6 @@ import DeployedRecords from './components/DeployedRecords';
 function App() {
   return (
     <Router>
-      {/* Optional: You can include the Navbar for authenticated pages */}
       <Navbar />
       <Routes>
         <Route path="/" element={<Landing />} />

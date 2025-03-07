@@ -1,45 +1,72 @@
-
 import React, { useEffect, useState } from 'react';
-import { getIdentityAuditLogs, getRecordAuditLogs } from '../api/api';
+import { userApi, healthRecordApi } from '../api/api';
 
 const AuditTrail = () => {
-  const [identityLogs, setIdentityLogs] = useState([]);
+  const [userLogs, setUserLogs] = useState([]);
   const [recordLogs, setRecordLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Fetch audit logs when the component mounts
   useEffect(() => {
-    const fetchLogs = async () => {
+    async function fetchAuditLogs() {
       try {
-        const identityResponse = await getIdentityAuditLogs();
-        setIdentityLogs(identityResponse.data);
-        const recordResponse = await getRecordAuditLogs();
-        setRecordLogs(recordResponse.data);
-      } catch (error) {
-        console.error('Error fetching audit logs:', error);
-      }
-    };
+        const userResponse = await userApi.getAuditLogs();
+        setUserLogs(userResponse);
 
-    fetchLogs();
+        const recordResponse = await healthRecordApi.getAuditLogs();
+        setRecordLogs(recordResponse);
+      } catch (err) {
+        console.error('Error fetching audit logs:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAuditLogs();
   }, []);
 
+  if (loading) return <p>Loading audit logs...</p>;
+  if (error) return <p>Error: {error}</p>;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ padding: '20px' }}>
       <h2>Audit Trail Dashboard</h2>
-      <h3>User Registration Events</h3>
-      <ul>
-        {identityLogs.map((log, index) => (
-          <li key={index}>
-            <strong>NRIC:</strong> {log.args.nric} | <strong>Address:</strong> {log.args.user} | <strong>Time:</strong> {new Date(log.args.timestamp * 1000).toLocaleString()}
-          </li>
-        ))}
-      </ul>
-      <h3>Health Record Submission Events</h3>
-      <ul>
-        {recordLogs.map((log, index) => (
-          <li key={index}>
-            <strong>NRIC:</strong> {log.args.nric} | <strong>Submitted By:</strong> {log.args.submittedBy} | <strong>Record Hash:</strong> {log.args.recordHash} | <strong>Time:</strong> {new Date(log.args.timestamp * 1000).toLocaleString()}
-          </li>
-        ))}
-      </ul>
+      
+      <section style={{ marginBottom: '2rem' }}>
+        <h3>User Registration Events</h3>
+        {userLogs.length === 0 ? (
+          <p>No user registration events found.</p>
+        ) : (
+          <ul>
+            {userLogs.map((log, index) => (
+              <li key={index}>
+                <strong>NRIC:</strong> {log.args.nric} | 
+                <strong> User Contract:</strong> {log.args.userContract} | 
+                <strong> Owner:</strong> {log.args.owner}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      
+      <section>
+        <h3>Health Record Submission Events</h3>
+        {recordLogs.length === 0 ? (
+          <p>No health record submission events found.</p>
+        ) : (
+          <ul>
+            {recordLogs.map((log, index) => (
+              <li key={index}>
+                <strong>Patient NRIC:</strong> {log.args.patientNric} | 
+                <strong> Record Contract:</strong> {log.args.recordContract} | 
+                <strong> Submitted By:</strong> {log.args.submittedBy} | 
+                <strong> Timestamp:</strong> {new Date(log.args.timestamp * 1000).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 };

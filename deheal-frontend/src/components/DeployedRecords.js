@@ -1,17 +1,21 @@
 // src/components/DeployedRecords.js
 import React, { useState, useEffect } from 'react';
-import { getDeployedRecords } from '../api/api';
+import { healthRecordApi } from '../api/api';
 
 const DeployedRecords = () => {
   const [records, setRecords] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchRecords() {
       try {
-        const response = await getDeployedRecords();
-        setRecords(response.data);
-      } catch (error) {
-        console.error("Error fetching deployed records:", error);
+        const response = await healthRecordApi.getDeployed();
+        setRecords(response);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
     }
     fetchRecords();
@@ -20,7 +24,11 @@ const DeployedRecords = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <h2>Deployed Health Record Contracts</h2>
-      {records.length === 0 ? (
+      {loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p>Error: {error}</p>
+      ) : records.length === 0 ? (
         <p>No records deployed yet.</p>
       ) : (
         <ul>
