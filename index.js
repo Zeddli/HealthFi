@@ -1,151 +1,72 @@
+// server/index.js
 require('dotenv').config();
-const { ethers } = require('ethers');
 const express = require('express');
-const path = require('path');
+const { ethers } = require('ethers');
 const cors = require('cors');
+
 const app = express();
-
-// Enable CORS for development
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-// Serve static files from React build directory
-app.use(express.static(path.join(__dirname, 'deheal-frontend/build')));
+// Set up provider using Vanar's RPC URL from .env
+const provider = new ethers.providers.JsonRpcProvider(process.env.VANGUARD_RPC_URL);
 
-// Set up the provider using Vanar's RPC URL
-const provider = new ethers.JsonRpcProvider(process.env.VANGUARD_RPC_URL);
-
-// Create a wallet instance using your private key
+// Create a wallet instance using your private key from .env
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
-// Load the IdentityContract ABI (ensure the path matches your artifact location)
-const identityArtifact = require('./artifacts/contracts/IdentityContract.sol/IdentityContract.json');
-const identityAbi = identityArtifact.abi;
+// Load UserFactory contract artifact and create an instance
+const userFactoryArtifact = require('../artifacts/contracts/UserFactory.sol/UserFactory.json');
+const userFactoryAbi = userFactoryArtifact.abi;
+const userFactoryAddress = process.env.USER_FACTORY_ADDRESS;
+const userFactory = new ethers.Contract(userFactoryAddress, userFactoryAbi, wallet);
 
-// Use identity.target since that's what contains the contract address in your setup
-const identityAddress = process.env.IDENTITY_CONTRACT_ADDRESS;
-const identityContract = new ethers.Contract(identityAddress, identityAbi, wallet);
+// Load HealthRecordFactory contract artifact and create an instance
+const hrFactoryArtifact = require('../artifacts/contracts/HealthRecordFactory.sol/HealthRecordFactory.json');
+const hrFactoryAbi = hrFactoryArtifact.abi;
+const hrFactoryAddress = process.env.HEALTH_RECORD_FACTORY_ADDRESS;
+const healthRecordFactory = new ethers.Contract(hrFactoryAddress, hrFactoryAbi, wallet);
 
-const healthRecordArtifact = require('./artifacts/contracts/HealthRecord.sol/HealthRecordContract.json');
-const healthRecordAbi = healthRecordArtifact.abi;
-const healthRecordAddress = process.env.HEALTH_RECORD_CONTRACT_ADDRESS;
-const healthRecordContract = new ethers.Contract(healthRecordAddress, healthRecordAbi, wallet);
-
-// Load the HealthRecordFactory contract ABI and address
-const healthRecordFactoryArtifact = require('./artifacts/contracts/HealthRecordFactory.sol/HealthRecordFactory.json');
-const healthRecordFactoryAbi = healthRecordFactoryArtifact.abi;
-const healthRecordFactoryAddress = process.env.HEALTH_RECORD_FACTORY_ADDRESS;
-const healthRecordFactoryContract = new ethers.Contract(healthRecordFactoryAddress, healthRecordFactoryAbi, wallet);
-
-// Add this before your other routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'deheal-frontend/build', 'index.html'));
-});
-
-// Endpoint to register a new user
-app.post('/register', async (req, res) => {
+/**
+ * Endpoint to auto-deploy a new User contract.
+ * Expects a JSON payload with:
+ *   - nric: string
+ *   - fullName: string
+ *   - phone: string
+ *   - department: string
+ */
+app.post('/user', async (req, res) => {
   try {
     const { nric, fullName, phone, department } = req.body;
-    
-    // Call registerUser on the contract
-    const tx = await identityContract.registerUser(nric, fullName, phone, department);
-    
-    // Wait for the transaction to be mined
+    const tx = await userFactory.createUser(nric, fullName, phone, department);
     await tx.wait();
-    
-    res.status(200).json({ message: 'User registered successfully', txHash: tx.hash });
+    res.status(200).json({ message: 'User contract deployed successfully', txHash: tx.hash });
   } catch (error) {
-    console.error("Registration error:", error);
+    console.error("User deployment error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Endpoint to add a new health record
-app.post('/record', async (req, res) => {
-    try {
-      const { nric, recordHash } = req.body;
-      const tx = await healthRecordContract.addRecord(nric, recordHash);
-      await tx.wait();
-      res.status(200).json({ message: 'Record added successfully', txHash: tx.hash });
-    } catch (error) {
-      console.error("Record addition error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-  
-  // Endpoint to get records for a patient
-  app.get('/record/:nric', async (req, res) => {
-    try {
-      const nric = req.params.nric;
-      const records = await healthRecordContract.getRecords(nric);
-      res.status(200).json(records);
-    } catch (error) {
-      console.error("Record retrieval error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-// Endpoint to fetch audit logs from IdentityContract (UserRegistered events)
-app.get('/audit/identity', async (req, res) => {
-    try {
-      // Create a filter for the UserRegistered event
-      const filter = identityContract.filters.UserRegistered();
-      // Retrieve logs from the beginning to the latest block
-      const logs = await provider.getLogs({
-        fromBlock: 0,
-        toBlock: "latest",
-        address: identityContract.address,
-        topics: filter.topics
-      });
-      // Decode logs using the contract interface
-      const decodedLogs = logs.map(log => identityContract.interface.parseLog(log));
-      res.status(200).json(decodedLogs);
-    } catch (error) {
-      console.error("Audit trail error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-// Endpoint to fetch audit logs from HealthRecordContract (RecordAdded events)
-app.get('/audit/records', async (req, res) => {
-    try {
-      // Create a filter for the RecordAdded event
-      const filter = healthRecordContract.filters.RecordAdded();
-      const logs = await provider.getLogs({
-        fromBlock: 0,
-        toBlock: "latest",
-        address: healthRecordContract.address,
-        topics: filter.topics
-      });
-      // Decode logs using the contract interface
-      const decodedLogs = logs.map(log => healthRecordContract.interface.parseLog(log));
-      res.status(200).json(decodedLogs);
-    } catch (error) {
-      console.error("Audit trail error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-// Endpoint to add a new health record using the factory
-app.post('/record', async (req, res) => {
+/**
+ * Endpoint to auto-deploy a new HealthRecord contract.
+ * Expects a JSON payload with:
+ *   - patientNric: string
+ *   - recordHash: string (a pointer or hash of the actual record)
+ */
+app.post('/healthrecord', async (req, res) => {
   try {
-    const { nric, recordHash } = req.body;
-    const tx = await healthRecordFactoryContract.createRecord(nric, recordHash);
+    const { patientNric, recordHash } = req.body;
+    const tx = await healthRecordFactory.createRecord(patientNric, recordHash);
     await tx.wait();
-    res.status(200).json({ message: 'Record contract deployed successfully', txHash: tx.hash });
+    res.status(200).json({ message: 'HealthRecord contract deployed successfully', txHash: tx.hash });
   } catch (error) {
-    console.error("Record submission error:", error);
+    console.error("HealthRecord deployment error:", error);
     res.status(500).json({ error: error.message });
   }
-}); 
-
-// Add this after all other routes to handle React routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'deheal-frontend/build', 'index.html'));
 });
 
-// Start the server
+// Optionally, add additional endpoints for retrieving audit logs or deployed contract addresses
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
