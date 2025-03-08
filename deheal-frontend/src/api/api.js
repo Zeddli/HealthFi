@@ -19,7 +19,9 @@ export const userApi = {
 export const healthRecordApi = {
   create: (recordData) => api.post('/healthrecord', recordData),
   getAuditLogs: () => api.get('/audit/record'),
-  getDeployed: () => api.get('/deployed-records')
+  getDeployed: () => api.get('/deployed-records'),
+  // Add transaction status check
+  checkTransaction: (txHash) => api.get(`/transaction/${txHash}`)
 };
 
 // Error interceptor

@@ -1,7 +1,6 @@
-// server/index.js (located in the /server folder)
 require('dotenv').config();
 const express = require('express');
-const ethers = require('ethers'); // Changed: import ethers without destructuring
+const ethers = require('ethers');
 const cors = require('cors');
 
 // Validate required environment variables
@@ -30,175 +29,162 @@ const provider = new ethers.JsonRpcProvider(process.env.VANGUARD_RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 console.log("Wallet address:", wallet.address);
 
-// Load UserFactory contract artifact and create an instance
+// Load contract artifacts and create instances
 const userFactoryArtifact = require('./artifacts/contracts/UserFactory.sol/UserFactory.json');
-const userFactoryAbi = userFactoryArtifact.abi;
-const userFactoryAddress = process.env.USER_FACTORY_ADDRESS;
-
-if (!ethers.isAddress(userFactoryAddress)) {
-  throw new Error('Invalid USER_FACTORY_ADDRESS');
-}
-console.log("UserFactory address:", userFactoryAddress);
-
-const userFactory = new ethers.Contract(userFactoryAddress, userFactoryAbi, wallet);
-
-// Load HealthRecordFactory contract artifact and create an instance
 const hrFactoryArtifact = require('./artifacts/contracts/HealthRecordFactory.sol/HealthRecordFactory.json');
-const hrFactoryAbi = hrFactoryArtifact.abi;
-const hrFactoryAddress = process.env.HEALTH_RECORD_FACTORY_ADDRESS;
 
-if (!ethers.isAddress(hrFactoryAddress)) {
-  throw new Error('Invalid HEALTH_RECORD_FACTORY_ADDRESS');
-}
+// Initialize contracts
+const userFactory = new ethers.Contract(process.env.USER_FACTORY_ADDRESS, userFactoryArtifact.abi, wallet);
+const healthRecordFactory = new ethers.Contract(process.env.HEALTH_RECORD_FACTORY_ADDRESS, hrFactoryArtifact.abi, wallet);
 
-const healthRecordFactory = new ethers.Contract(hrFactoryAddress, hrFactoryAbi, wallet);
+console.log("Contracts initialized:", {
+  userFactory: process.env.USER_FACTORY_ADDRESS,
+  healthRecordFactory: process.env.HEALTH_RECORD_FACTORY_ADDRESS
+});
 
-/**
- * POST /user
- * Auto-deploy a new User contract.
- * Expected JSON payload: { nric, fullName, phone, department }
- */
+// API Routes
 app.post('/user', async (req, res) => {
   try {
     const { nric, fullName, phone, department } = req.body;
-    const tx = await userFactory.createUser(nric, fullName, phone, department);
-    await tx.wait();
-    res.status(200).json({ message: 'User contract deployed successfully', txHash: tx.hash });
+    
+    const nonce = await wallet.getNonce();
+    console.log("Creating user with nonce:", nonce);
+    
+    const tx = await userFactory.createUser(nric, fullName, phone, department, {
+      nonce,
+      gasLimit: 500000
+    });
+    
+    const receipt = await tx.wait();
+    res.status(200).json({ 
+      message: 'User contract deployed successfully', 
+      txHash: tx.hash,
+      receipt 
+    });
   } catch (error) {
     console.error("User deployment error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * POST /healthrecord
- * Auto-deploy a new HealthRecord contract.
- * Expected JSON payload: { patientNric, recordHash }
- */
 app.post('/healthrecord', async (req, res) => {
   try {
     const { patientNric, diagnosis, description, date, treatment, hospitalisation } = req.body;
-    const tx = await healthRecordFactory.createRecord(patientNric, diagnosis, description, date, treatment, hospitalisation);
-    await tx.wait();
-    res.status(200).json({ message: 'HealthRecord contract deployed successfully', txHash: tx.hash });
+    console.log("Creating health record for:", patientNric);
+
+    const nonce = await wallet.getNonce();
+    const tx = await healthRecordFactory.createRecord(
+      patientNric,
+      diagnosis,
+      description,
+      date,
+      treatment,
+      hospitalisation,
+      {
+        nonce,
+        gasLimit: 1000000
+      }
+    );
+
+    const receipt = await tx.wait();
+    const event = receipt.logs.find(log => 
+      healthRecordFactory.interface.parseLog(log)?.name === 'RecordCreated'
+    );
+
+    res.status(200).json({
+      message: 'Health record created successfully',
+      txHash: tx.hash,
+      receipt,
+      event: event ? healthRecordFactory.interface.parseLog(event) : null
+    });
   } catch (error) {
-    console.error("HealthRecord deployment error:", error);
+    console.error("Health record creation error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /audit/user
- * Fetch audit logs for user registrations by retrieving the UserCreated events.
- */
 app.get('/audit/user', async (req, res) => {
   try {
-    console.log("Fetching user audit logs...");
-    console.log("UserFactory address:", userFactoryAddress);
-
-    // Check if contract interface is properly loaded
-    if (!userFactory || !userFactory.interface) {
-      throw new Error("Contract interface not properly initialized");
-    }
-
-    // Get the event signature directly
-    const eventName = "UserCreated";
-    console.log("Looking for event:", eventName);
-
-    // Get the event topic
-    const topic = userFactory.interface.getEvent(eventName).topicHash;
-    console.log("Event topic:", topic);
-
-    // Get logs using the topic
+    const filter = userFactory.filters.UserCreated();
     const logs = await provider.getLogs({
       fromBlock: 0,
       toBlock: "latest",
-      address: userFactoryAddress,
-      topics: [topic]
+      address: userFactory.address,
+      topics: [filter.fragment.topicHash]
     });
 
-    console.log("Found raw logs:", logs);
-
-    // Parse logs using contract interface
-    const decodedLogs = await Promise.all(logs.map(async (log) => {
-      try {
-        const event = userFactory.interface.getEvent(eventName);
-        const parsedLog = userFactory.interface.decodeEventLog(
-          event,
-          log.data,
-          log.topics
-        );
-        
-        const block = await provider.getBlock(log.blockNumber);
-        
-        return {
-          userAddress: log.topics[1], // First indexed parameter
-          nric: parsedLog.nric,
-          blockNumber: log.blockNumber,
-          transactionHash: log.transactionHash,
-          timestamp: block?.timestamp,
-        };
-      } catch (e) {
-        console.error("Error parsing specific log:", e);
-        console.log("Problematic log:", log);
-        return null;
-      }
+    const events = await Promise.all(logs.map(async log => {
+      const event = userFactory.interface.parseLog(log);
+      const block = await provider.getBlock(log.blockNumber);
+      return {
+        ...event.args,
+        blockNumber: log.blockNumber,
+        transactionHash: log.transactionHash,
+        timestamp: block?.timestamp
+      };
     }));
 
-    const validLogs = decodedLogs.filter(Boolean);
-    console.log("Decoded logs:", validLogs);
-    res.status(200).json(validLogs);
+    res.status(200).json(events);
   } catch (error) {
-    console.error("Audit trail error (user):", error);
+    console.error("User audit error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /audit/record
- * Fetch audit logs for health record submissions by retrieving the RecordCreated events.
- */
 app.get('/audit/record', async (req, res) => {
   try {
+    const filter = healthRecordFactory.filters.RecordCreated();
     const logs = await provider.getLogs({
       fromBlock: 0,
       toBlock: "latest",
       address: healthRecordFactory.address,
-      topics: [healthRecordFactory.interface.getEvent("RecordCreated").topicHash]
+      topics: [filter.fragment.topicHash]
     });
-    const decodedLogs = logs.map(log => {
-      try {
-        return {
-          ...healthRecordFactory.interface.parseLog({
-            topics: log.topics,
-            data: log.data
-          }),
-          blockNumber: log.blockNumber,
-          transactionHash: log.transactionHash
-        };
-      } catch (e) {
-        console.error("Error parsing log:", e);
-        return null;
-      }
-    }).filter(Boolean);
-    
-    res.status(200).json(decodedLogs);
+
+    const events = await Promise.all(logs.map(async log => {
+      const event = healthRecordFactory.interface.parseLog(log);
+      const block = await provider.getBlock(log.blockNumber);
+      return {
+        ...event.args,
+        blockNumber: log.blockNumber,
+        transactionHash: log.transactionHash,
+        timestamp: block?.timestamp
+      };
+    }));
+
+    res.status(200).json(events);
   } catch (error) {
-    console.error("Audit trail error (record):", error);
+    console.error("Record audit error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /deployed-records
- * Retrieve all deployed HealthRecord contract addresses.
- */
 app.get('/deployed-records', async (req, res) => {
   try {
-    const deployedRecords = await healthRecordFactory.getDeployedRecords();
-    res.status(200).json(deployedRecords);
+    const records = await healthRecordFactory.getDeployedRecords();
+    res.status(200).json(records);
   } catch (error) {
     console.error("Error fetching deployed records:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/transaction/:txHash', async (req, res) => {
+  try {
+    const { txHash } = req.params;
+    const tx = await provider.getTransaction(txHash);
+    if (!tx) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+    
+    const receipt = await provider.getTransactionReceipt(txHash);
+    res.json({
+      status: receipt ? (receipt.status === 1 ? 'success' : 'failed') : 'pending',
+      transaction: tx,
+      receipt: receipt
+    });
+  } catch (error) {
+    console.error("Transaction status error:", error);
     res.status(500).json({ error: error.message });
   }
 });

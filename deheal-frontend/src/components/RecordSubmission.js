@@ -20,19 +20,21 @@ const RecordSubmission = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await healthRecordApi.create({
-        patientNric: formData.patientNric,
-        diagnosis: formData.diagnosis,
-        description: formData.description,
-        date: formData.date,
-        treatment: formData.treatment,
-        hospitalisation: formData.hospitalisation
-      });
+      console.log("Submitting record:", formData);
+      const response = await healthRecordApi.create(formData);
+      console.log("Response:", response);
       setMessage(`Record added: ${response.txHash}`);
-      setFormData({ patientNric: '', recordHash: '' });
+      setFormData({
+        patientNric: '',
+        diagnosis: '',
+        description: '',
+        date: '',
+        treatment: '',
+        hospitalisation: ''
+      });
     } catch (error) {
       console.error("Record submission error:", error);
-      setMessage(`Error: ${error.message}`);
+      setMessage(`Error: ${error.message || "Failed to submit record"}`);
     }
   };
 
