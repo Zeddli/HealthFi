@@ -23,10 +23,12 @@ app.use(express.json());
 app.use(cors());
 
 // Set up provider using Vanar's RPC URL from .env
+console.log("Connecting to RPC URL:", process.env.VANGUARD_RPC_URL);
 const provider = new ethers.JsonRpcProvider(process.env.VANGUARD_RPC_URL);
 
 // Create a wallet instance using your private key from .env
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+console.log("Wallet address:", wallet.address);
 
 // Load UserFactory contract artifact and create an instance
 const userFactoryArtifact = require('./artifacts/contracts/UserFactory.sol/UserFactory.json');
@@ -36,6 +38,7 @@ const userFactoryAddress = process.env.USER_FACTORY_ADDRESS;
 if (!ethers.isAddress(userFactoryAddress)) {
   throw new Error('Invalid USER_FACTORY_ADDRESS');
 }
+console.log("UserFactory address:", userFactoryAddress);
 
 const userFactory = new ethers.Contract(userFactoryAddress, userFactoryAbi, wallet);
 
@@ -91,47 +94,60 @@ app.post('/healthrecord', async (req, res) => {
 app.get('/audit/user', async (req, res) => {
   try {
     console.log("Fetching user audit logs...");
-    console.log("UserFactory address:", userFactory.address);
-    
-    // Define event signature
-    const eventSignature = "UserCreated(address,string)";
-    const eventTopic = ethers.id(eventSignature);
+    console.log("UserFactory address:", userFactoryAddress);
 
-    console.log("Event topic:", eventTopic);
+    // Check if contract interface is properly loaded
+    if (!userFactory || !userFactory.interface) {
+      throw new Error("Contract interface not properly initialized");
+    }
 
-    // Get logs from blockchain
+    // Get the event signature directly
+    const eventName = "UserCreated";
+    console.log("Looking for event:", eventName);
+
+    // Get the event topic
+    const topic = userFactory.interface.getEvent(eventName).topicHash;
+    console.log("Event topic:", topic);
+
+    // Get logs using the topic
     const logs = await provider.getLogs({
       fromBlock: 0,
       toBlock: "latest",
-      address: userFactory.address,
-      topics: [eventTopic]
+      address: userFactoryAddress,
+      topics: [topic]
     });
 
     console.log("Found raw logs:", logs);
 
     // Parse logs using contract interface
-    const decodedLogs = logs.map(log => {
+    const decodedLogs = await Promise.all(logs.map(async (log) => {
       try {
-        const parsedLog = userFactory.interface.parseLog({
-          topics: log.topics,
-          data: log.data
-        });
+        const event = userFactory.interface.getEvent(eventName);
+        const parsedLog = userFactory.interface.decodeEventLog(
+          event,
+          log.data,
+          log.topics
+        );
+        
+        const block = await provider.getBlock(log.blockNumber);
         
         return {
-          userAddress: parsedLog.args[0],
-          nric: parsedLog.args[1],
+          userAddress: log.topics[1], // First indexed parameter
+          nric: parsedLog.nric,
           blockNumber: log.blockNumber,
-          transactionHash: log.transactionHash
+          transactionHash: log.transactionHash,
+          timestamp: block?.timestamp,
         };
       } catch (e) {
         console.error("Error parsing specific log:", e);
         console.log("Problematic log:", log);
         return null;
       }
-    }).filter(Boolean);
+    }));
 
-    console.log("Decoded logs:", decodedLogs);
-    res.status(200).json(decodedLogs);
+    const validLogs = decodedLogs.filter(Boolean);
+    console.log("Decoded logs:", validLogs);
+    res.status(200).json(validLogs);
   } catch (error) {
     console.error("Audit trail error (user):", error);
     res.status(500).json({ error: error.message });
