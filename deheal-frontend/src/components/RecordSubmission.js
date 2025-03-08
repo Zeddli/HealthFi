@@ -12,18 +12,21 @@ const RecordSubmission = () => {
     hospitalisation: ''
   });
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.value});
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      console.log("Submitting record:", formData);
+      console.log('Submitting health record:', formData);
       const response = await healthRecordApi.create(formData);
-      console.log("Response:", response);
-      setMessage(`Record added: ${response.txHash}`);
+      console.log('Response:', response);
+      setMessage(`Record created successfully! Transaction: ${response.txHash}`);
+      // Clear form after successful submission
       setFormData({
         patientNric: '',
         diagnosis: '',
@@ -33,8 +36,10 @@ const RecordSubmission = () => {
         hospitalisation: ''
       });
     } catch (error) {
-      console.error("Record submission error:", error);
-      setMessage(`Error: ${error.message || "Failed to submit record"}`);
+      console.error('Record submission error:', error);
+      setMessage(`Error: ${error.message || 'Failed to submit record'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,7 +53,7 @@ const RecordSubmission = () => {
         <input type="text" name="date" placeholder="Date (YYYY-MM-DD)" value={formData.date} onChange={handleChange} required />
         <input type="text" name="treatment" placeholder="Treatment" value={formData.treatment} onChange={handleChange} required />
         <input type="text" name="hospitalisation" placeholder="Hospitalisation" value={formData.hospitalisation} onChange={handleChange} required />
-        <button type="submit">Submit Record</button>
+        <button type="submit" disabled={loading}>{loading ? 'Submitting...' : 'Submit Record'}</button>
       </form>
       {message && <p>{message}</p>}
     </div>
